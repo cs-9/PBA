@@ -1,7 +1,7 @@
 import numpy as np
 import open3d as o3d
 
-with open("sphericalPointCloud.txt", "r") as f:
+with open("pointCloud.txt", "r") as f:
     lines = f.readlines()
     pts = [line[:-1].split(" ") for line in lines]
     pts = np.array([[float(pt[0]), float(pt[1]), float(pt[2]), float(pt[3]), float(pt[4]), float(pt[5])] for pt in pts])
@@ -16,7 +16,4 @@ with open("sphericalPointCloud.txt", "r") as f:
     bbox = pcd.get_axis_aligned_bounding_box()
     p_mesh_crop = poisson_mesh.crop(bbox)
     o3d.visualization.draw_geometries([poisson_mesh], mesh_show_wireframe=True)
-
-
-
 
