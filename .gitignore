@@ -1,3 +1,7 @@
 .ipynb_checkpoints
 SFM_results
 openMVG*
+*.bin
+temp.py
+templering.json
+
