@@ -4,4 +4,6 @@ openMVG*
 *.bin
 temp.py
 templering.json
+sfm_data.bin
+
 
