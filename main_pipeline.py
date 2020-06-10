@@ -3,8 +3,9 @@ from plyfile import PlyData, PlyElement
 from tqdm import tqdm
 from time import time
 import json
+import cv2
 
-######################################### FUNCTIONS ###################################################
+######################################### FUNCTIONS ###########################################################
 def valid(l):
     for x in l:
         if x != 0:
@@ -30,7 +31,7 @@ def return_camera_info(file1,file2):
     C = np.array([np.array(x['C']) for x in data_RC])
     K = np.matmul(P[:, :, :3], np.linalg.inv(R))
 
-    return (P,R,C,K)
+    return (P,R,C,K,files)
 
 def fetch_mesh_coordinates(mesh_coords):
     '''
@@ -111,10 +112,49 @@ def calculate_visibility_mesh(camera_locations):
     end = time()
     print("Done in {}sec".format(end-start))
     return Camera_visibility
-##########################################################################################################
+
+def Energy_function_calc(sample_size=14):
+    '''Finds Energy value for the whole mesh and camera'''
+    #Calculates barycentric coordinates
+    points = []
+    for u in np.arange(0,1,1/sample_size):
+        for v in np.arange(0,1-u,1/sample_size):
+            w = 1-u-v
+            points.append([u,v,w])
+    points = np.array(points)
+    h,w,_ = np.shape(Images[0])
+    integration = 0
+    
+    for camera_index in tqdm(range(len(camera_locations)),desc="Calculating energy function..."):
+        f_x = K[camera_index][0,0]
+        f_y = K[camera_index][1,1]
+        visibility = Camera_visibility[camera_index]
+        P_camera = P[camera_index]
+        C = np.array(list(camera_locations[camera_index]))
+        for mesh_id in range(len(Mesh_info)):
+            X_j = Mesh_vertices[mesh_id] 
+            _,n_j,A_j = Mesh_info[mesh_id]
+            #P=uA+vB+wC
+            X_u = np.dot(points,X_j)
+            #Finds x = PX
+            se = np.dot(P_camera,np.hstack((X_u,np.ones((len(X_u),1)))).T).T
+            se = np.divide(se,se[:,-1][:,np.newaxis])
+            #Texture term shd be added, term from image fetched
+            image_term = np.linalg.norm(Images[camera_index][np.clip(se[:,1].astype(int),0,h-1),np.clip(se[:,0].astype(int),0,w-1)],axis=1)
+            #For alpha term
+            d = X_u - C
+            d_z = np.linalg.norm(d,axis=1)
+            alpha = (10**-6)*(f_x*f_y)*np.divide(d,d_z[:,np.newaxis]**3)
+            #Final integeration over a single meshe
+            integration += A_j*np.dot(image_term,np.dot(alpha,n_j))*visibility[mesh_id]
+    return integration
+#########################################################################################################################
 #Fetch initial scene data
-P,R,camera_locations,K = return_camera_info("camera_params.test","images.test")
+P,R,camera_locations,K,files = return_camera_info("camera_params.test","images.test")
 mesh = PlyData.read('./scene_dense_mesh_refine.ply')
+#Load all images for each camera
+operating_dir = "./datasets/templeRing/"
+Images = [cv2.imread(operating_dir+files[i].split("/")[-1]) for i in range(len(camera_locations))]
 
 #Extract mesh related information
 Mesh_info = []
@@ -127,6 +167,11 @@ mesh_centroid = np.mean(Mesh_vertices,axis=1)
 
 #Visibility table
 Camera_visibility = calculate_visibility_mesh(camera_locations)
+
+integeration = Energy_function_calc()
+print(integeration)
+
+
 
 
 
