@@ -5,5 +5,7 @@ openMVG*
 temp.py
 templering.json
 sfm_data.bin
+*.sh
+*.ipynb
 
 

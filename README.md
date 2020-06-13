@@ -7,7 +7,8 @@ This repository tries to implement the paper Photometric Bundle Adjustment for D
 - [x] Generate visibility function
 - [ ] Texture estimation(repo not updated)
 - [x] Energy function calculation
-- [ ] Gradient calculation over X
+- [x] Gradient calculation over X
+- [ ] Reflect changes in vertex over PLY file
 - [ ] Gradient calculation over camera parameters
 - [ ] Gradient calculation over textures
 - [ ] Compilation of everything to a single pipeline
