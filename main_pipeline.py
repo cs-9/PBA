@@ -4,7 +4,9 @@ from tqdm import tqdm
 from time import time
 import json
 import cv2
-
+from matplotlib import pyplot as plt
+import matplotlib as mpl
+from matplotlib import cm
 ######################################### FUNCTIONS ###########################################################
 def valid(l):
     for x in l:
@@ -143,6 +145,7 @@ def Energy_function_calc(sample_size=14):
     points = np.array(points)
     h,w,_ = np.shape(Images[0])
     integration = 0
+    Energy_over_mesh = np.zeros(len(Mesh_info))
     
     for camera_index in tqdm(range(len(camera_locations)),desc="Calculating energy function..."):
         f_x = K[camera_index][0,0]
@@ -151,22 +154,25 @@ def Energy_function_calc(sample_size=14):
         P_camera = P[camera_index]
         C = np.array(list(camera_locations[camera_index]))
         for mesh_id in range(len(Mesh_info)):
-            X_j = Mesh_vertices[mesh_id] 
-            _,n_j,A_j = Mesh_info[mesh_id]
-            #P=uA+vB+wC
-            X_u = np.dot(points,X_j)
-            #Finds x = PX
-            se = np.dot(P_camera,np.hstack((X_u,np.ones((len(X_u),1)))).T).T
-            se = np.divide(se,se[:,-1][:,np.newaxis])
-            #Texture term shd be added, term from image fetched
-            image_term = np.linalg.norm(Images[camera_index][np.clip(se[:,1].astype(int),0,h-1),np.clip(se[:,0].astype(int),0,w-1)],axis=1)
-            #For alpha term
-            d = X_u - C
-            d_z = np.linalg.norm(d,axis=1)
-            alpha = (10**-7)*(f_x*f_y)*np.divide(d,d_z[:,np.newaxis]**3)
-            #Final integeration over a single meshe
-            integration += A_j*np.dot(image_term,np.dot(alpha,n_j))*visibility[mesh_id]
-    return integration
+            if visibility[mesh_id]!=0:    
+                X_j = Mesh_vertices[mesh_id] 
+                _,n_j,A_j = Mesh_info[mesh_id]
+                #P=uA+vB+wC
+                X_u = np.dot(points,X_j)
+                #Finds x = PX
+                se = np.dot(P_camera,np.hstack((X_u,np.ones((len(X_u),1)))).T).T
+                se = np.divide(se,se[:,-1][:,np.newaxis])
+                #Texture term shd be added, term from image fetched
+                image_term = np.linalg.norm(Images[camera_index][np.clip(se[:,1].astype(int),0,h-1),np.clip(se[:,0].astype(int),0,w-1)],axis=1)
+                #For alpha term
+                d = X_u - C
+                d_z = np.linalg.norm(d,axis=1)
+                alpha = (10**-6)*(f_x*f_y)*np.divide(d,d_z[:,np.newaxis]**3)
+                #Final integeration over a single meshe
+                temp_val = A_j*np.dot(image_term,np.dot(alpha,n_j))*visibility[mesh_id]
+                Energy_over_mesh[mesh_id] = Energy_over_mesh[mesh_id] + temp_val
+                integration += temp_val
+    return integration,Energy_over_mesh
 
 def Numerical_gradient_mesh(vertex_id,diff=0.0000001,sample_size=14):
     '''
@@ -237,6 +243,40 @@ def Numerical_gradient_mesh(vertex_id,diff=0.0000001,sample_size=14):
                     integration += (integration_pos-integration_neg)
         gradient[axis] = integration/(2*diff)
     return gradient
+
+def write_to_PLY(Vertex_update,Energy_function):
+    '''
+    Writes the vertex and faces into PLY file with the help of Vertex_update. The meshes will
+    have color according to the defined energy function over the meshes. Can be texture too
+    Parameters:
+        Vertex_update: Array of vertexes
+        Energy_function: Value of energy over different meshes
+    Returns:
+        ply file named mesh_visualize.ply
+    '''
+    #Defining colormap
+    cmap = plt.cm.get_cmap('plasma')
+    norm = mpl.colors.Normalize(vmin=min(Energy_function), vmax=max(Energy_function))
+    scalarMap = cm.ScalarMappable(norm=norm, cmap=cmap)
+    coloring = (255*scalarMap.to_rgba(Energy_function)).astype(int)
+    #Vertices
+    Normal_vertices = [(Vertex_update[i][0],Vertex_update[i][1],Vertex_update[i][2]) for i in range(len(Vertex_update))]
+    camera_vertices = [(camera_locations[i][0],camera_locations[i][1],camera_locations[i][2]) for i in range(len(camera_locations))]
+    Write_vertices = Normal_vertices + camera_vertices
+    #Faces
+    coloring = (255*scalarMap.to_rgba(Energy_function)).astype(int)
+    Colored_Mesh = [(3,mesh.elements[1].data[i][0][0],mesh.elements[1].data[i][0][1],mesh.elements[1].data[i][0][2],coloring[i][0],coloring[i][1],coloring[i][2]) for i in range(len(mesh.elements[1].data))]
+    num_vertices = len(Write_vertices)
+    #Writing to PLY file
+    num_vertices = len(Write_vertices)
+    num_faces = len(Colored_Mesh)
+    header_lines = "ply\nformat ascii 1.0\ncomment meshes colored according to function\nelement vertex {}\ncomment modified vertices\nproperty float x\nproperty float y\nproperty float z\nelement face {}\nproperty list uchar int vertex_indices\nproperty uchar red\nproperty uchar green\nproperty uchar blue\nend_header\n".format(num_vertices,num_faces)
+    for i in range(num_vertices):
+        header_lines = header_lines + str(Write_vertices[i]).replace(",","")[1:-1] + '\n'
+    for i in range(num_faces):
+        header_lines = header_lines + str(Colored_Mesh[i]).replace(",","")[1:-1] + '\n'
+    with open("./mesh_visualize.ply","w") as f:
+        f.write(header_lines)
 #########################################################################################################################
 #Fetch initial scene data
 P,R,camera_locations,K,files = return_camera_info("camera_params.test","images.test")
@@ -259,12 +299,13 @@ Vertex = np.array([np.array(list(mesh.elements[0].data[i])) for i in range(len(m
 #Visibility table
 Camera_visibility = calculate_visibility_mesh(camera_locations)
 
-integeration = Energy_function_calc()
+integeration,Energy_over_mesh = Energy_function_calc()
 print("Total photometric loss without texture added:{}".format(integeration))
 
 grad = Numerical_gradient_mesh(35)
 print("Gradient:{}".format(grad))
 
-
+print("Saving into PLY file....")
+write_to_PLY(Vertex,Energy_over_mesh)
 
 

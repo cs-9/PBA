@@ -7,5 +7,7 @@ templering.json
 sfm_data.bin
 *.sh
 *.ipynb
+testing.ply
+tet.ply
 
 
