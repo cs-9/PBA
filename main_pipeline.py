@@ -9,6 +9,9 @@ import matplotlib as mpl
 from matplotlib import cm
 import trimesh
 ######################################### FUNCTIONS ###########################################################
+
+SAMPLE_SIZE = 10
+
 def valid(l):
     for x in l:
         if x != 0:
@@ -135,7 +138,7 @@ def calculate_visibility_mesh(camera_locations):
     print("Done in {}sec".format(end-start))
     return Camera_visibility
 
-def Energy_function_calc(sample_size=14):
+def Energy_function_calc(sample_size=SAMPLE_SIZE):
     '''Finds Energy value for the whole mesh and camera'''
     #Calculates barycentric coordinates
     points = []
@@ -349,7 +352,7 @@ def show_texture():
 
     for i in range(mesh_0.faces.shape[0]):
         A, B, C = vertices_0[i]
-        for u in range(reso_0):
+        for u in range(0):
             for v in range(0, reso_0 - u):
                 X = A + u / reso_0 * (B - A) + v / reso_0 * (C - A)
                 tex_val, flag = getTex(i, X, u / reso_0, v / reso_0)
@@ -360,6 +363,67 @@ def show_texture():
     pcd = trimesh.PointCloud(vertices=points, colors=colors)
     print("Time taken: ", time() - start_0)
     pcd.scene().show()
+    pcd.export("mesh_textured.ply")
+    print("Texture saved to file: mesh_textured.ply")
+    
+def init_texture():
+    A, B, C = vertices_0[:, 0], vertices_0[:, 1], vertices_0[:, 2]
+    A = np.hstack([A, np.ones([A.shape[0], 1], dtype=int)])
+    B = np.hstack([B, np.ones([B.shape[0], 1], dtype=int)])
+    C = np.hstack([C, np.ones([C.shape[0], 1], dtype=int)])
+
+    start = time()
+
+    texture = np.zeros([mesh_0.faces.shape[0], SAMPLE_SIZE * SAMPLE_SIZE, 3], dtype=np.float64)
+    wt = np.zeros([mesh_0.faces.shape[0], SAMPLE_SIZE * SAMPLE_SIZE], dtype=float)
+    print("Computing texture")
+    for cam in tqdm(range(len(image_files)),desc="Calculating texture {} ".format(len(image_files))):
+        # print("%.2f%% Complete. Time Taken: %.2fs" % (100 * cam / len(image_files), time() - start))
+        p = P[cam]
+        img = images_0[cam]
+        # alpha = K[cam][0][0] * K[cam][1][1]
+        for i in range(vertices_0.shape[0]):
+            if not visibility_0[cam][i]:
+                continue
+            a, b, c = A[i], B[i], C[i]
+            a_, b_, c_ = p.dot(a.T), p.dot(b.T), p.dot(c.T)
+            a_, b_, c_ = a_ / a_[-1], b_/b_[-1], c_/c_[-1]
+            for u in np.arange(0, 1, 1/SAMPLE_SIZE):
+                for v in np.arange(0, 1 - u, 1/SAMPLE_SIZE):
+                    # u, v, w
+                    w = 1 - u - v
+                    pos = np.round(u * a_ + v * b_ + w * c_)
+                    if pos[0] >= 640 or pos[1] >= 480:
+                        continue
+                    # d = (a + u * b + v * c)[:3] - CamCenter[cam]
+                    # wt_temp = np.abs(normals_0[i].dot(d) * alpha / (d[-1] ** 3))
+                    wt_temp = 1
+                    # if wt_temp == 0 or np.isnan(wt_temp):
+                    #     continue
+                    x_coord, y_coord = pos[1], pos[0]
+                    wt[i][int(u * SAMPLE_SIZE * SAMPLE_SIZE + v * SAMPLE_SIZE)] += wt_temp
+                    texture[i][int(u * SAMPLE_SIZE * SAMPLE_SIZE + v * SAMPLE_SIZE)] += img[int(x_coord)][int(y_coord)] * wt_temp
+    return texture, wt
+
+
+def show_texture_2(texture, wt):
+    points = []
+    colors = []
+
+    for i in range(mesh_0.faces.shape[0]):
+        A, B, C = vertices_0[i]
+        for u in np.arange(0, 1, 1/SAMPLE_SIZE):
+            for v in np.arange(0, 1 - u, 1/SAMPLE_SIZE):
+                if wt[i][int(u * SAMPLE_SIZE * SAMPLE_SIZE + v * SAMPLE_SIZE)] == 0:
+                    continue
+                w = 1 - u - v
+                X = u * A + v * B + w * C
+                points.append(X)
+                colors.append(texture[i][int(u * SAMPLE_SIZE * SAMPLE_SIZE + v * SAMPLE_SIZE)] / wt[i][int(u * SAMPLE_SIZE * SAMPLE_SIZE + v * SAMPLE_SIZE)])
+    pcd = trimesh.PointCloud(vertices=points, colors=colors)
+    pcd.scene().show()
+    pcd.export("mesh_textured_2.ply")
+    
 #########################################################################################################################
 #Fetch initial scene data
 P,R,camera_locations,K,files = return_camera_info("camera_params.test","images.test")
@@ -389,12 +453,13 @@ centroids_0 = mesh_0.vertices[mesh_0.faces].mean(axis=1)
 vertices_0 = mesh_0.vertices[mesh_0.faces]
 normals_0 = np.cross(vertices_0[:, 2] - vertices_0[:, 0], vertices_0[:, 1] - vertices_0[:, 0])
 images_0 = [mpl.image.imread(f) for f in image_files]
-reso_0 = 5
 #Visibility table
 Camera_visibility = calculate_visibility_mesh(camera_locations)
+
 visibility_0 =  Camera_visibility
-texture_coords_0, b_img_tex_0 = init_texture_coords()
-show_texture()
+# texture_coords_0, b_img_tex_0 = init_texture_coords()
+texture_0, wt_0 = init_texture()
+show_texture_2(texture_0, wt_0)
 ###########################################
 integeration,Energy_over_mesh = Energy_function_calc()
 print("Total photometric loss without texture added:{}".format(integeration))
