@@ -7,6 +7,7 @@ import cv2
 from matplotlib import pyplot as plt
 import matplotlib as mpl
 from matplotlib import cm
+import trimesh
 ######################################### FUNCTIONS ###########################################################
 def valid(l):
     for x in l:
@@ -277,6 +278,87 @@ def write_to_PLY(Vertex_update,Energy_function):
         header_lines = header_lines + str(Colored_Mesh[i]).replace(",","")[1:-1] + '\n'
     with open("./mesh_visualize.ply","w") as f:
         f.write(header_lines)
+        
+        
+def init_texture_coords():
+    A, B, C = vertices_0[:, 0], vertices_0[:, 1], vertices_0[:, 2]
+    A = np.hstack([A, np.ones([A.shape[0], 1], dtype=int)])
+    B = np.hstack([B, np.ones([B.shape[0], 1], dtype=int)])
+    C = np.hstack([C, np.ones([C.shape[0], 1], dtype=int)])
+
+    start = time()
+
+    texture_coords = np.zeros([mesh_0.faces.shape[0], len(image_files), 3, 2], dtype=np.float64)
+    b_img_tex = np.zeros([mesh_0.faces.shape[0], len(image_files)], dtype=bool)
+
+    for cam in range(len(image_files)):
+        # print("%.2f%% Complete. Time Taken: %.2fs" % (100 * cam / len(image_files), time() - start))
+        p = P[cam]
+        img = images_0[cam]
+        for i in range(vertices_0.shape[0]):
+            if not visibility_0[cam][i]:
+                continue
+            a, b, c = A[i], B[i], C[i]
+            a_, b_, c_ = p.dot(a.T), p.dot(b.T), p.dot(c.T)
+            a_, b_, c_ = a_ / a_[-1], b_ / b_[-1], c_ / c_[-1]
+            a__ = np.round(a_)
+            b__ = np.round(b_)
+            c__ = np.round(c_)
+            if (0 <= int(a__[0]) < img.shape[0]) \
+                    and (0 <= int(b__[0]) < img.shape[0]) \
+                    and (0 <= int(c__[0]) < img.shape[0]) \
+                    and (0 <= int(a__[1]) < img.shape[1]) \
+                    and (0 <= int(b__[1]) < img.shape[1]) \
+                    and (0 <= int(c__[1]) < img.shape[1]):
+                b_img_tex[i][cam] = True
+                texture_coords[i][cam][0] = a__[:2]
+                texture_coords[i][cam][1] = b__[:2]
+                texture_coords[i][cam][2] = c__[:2]
+    return texture_coords, b_img_tex
+
+
+def getTex(faceId, X_, u=-1., v=-1.):
+    A, B, C = vertices_0[faceId]
+    if u == -1 or v == -1:
+        X = X_ - A
+        B -= A
+        C -= A
+        v = (X[1] * B[0] - B[1] * X[0]) / (B[0] * C[1] - B[1] * C[0])
+        u = (X[0] - v * C[0]) / B[0]
+    res_tex = np.array([0., 0., 0.])
+    w = 0
+    for cam in range(len(images_0)):
+        if not b_img_tex_0[faceId][cam]:
+            continue
+        a, b, c = texture_coords_0[faceId][cam]
+        b, c = b - a, c - a
+        coords = a + u * b + v * c
+        d = X_ - CamCenter[cam]
+        # w_temp = K[cam][0][0] * K[cam][1][1] * np.dot(normals[faceId], d) / (np.linalg.norm(d) ** 3)
+        w_temp = 1              # NOT WORKING WHEN W_TEMP IS COMPUTED PROPERLY
+        res_tex += images_0[cam][int(coords[0])][int(coords[1])] * w_temp
+        w += w_temp
+    if w != 0:
+        return res_tex / w, True
+    return res_tex, False
+    
+    
+def show_texture():
+    points = []
+    colors = []
+
+    for i in range(mesh_0.faces.shape[0]):
+        A, B, C = vertices_0[i]
+        for u in range(reso_0):
+            for v in range(0, reso_0 - u):
+                X = A + u / reso_0 * (B - A) + v / reso_0 * (C - A)
+                tex_val, flag = getTex(i, X, u / reso_0, v / reso_0)
+                if flag:
+                    points.append(A + u / reso_0 * (B - A) + v / reso_0 * (C - A))
+                    # colors.append(texture[i][u * reso + v] / wt[i][u * reso + v])
+                    colors.append(tex_val)
+    pcd = trimesh.PointCloud(vertices=points, colors=colors)
+    pcd.scene().show()
 #########################################################################################################################
 #Fetch initial scene data
 P,R,camera_locations,K,files = return_camera_info("camera_params.test","images.test")
@@ -298,7 +380,21 @@ Vertex = np.array([np.array(list(mesh.elements[0].data[i])) for i in range(len(m
 
 #Visibility table
 Camera_visibility = calculate_visibility_mesh(camera_locations)
+###########################################
+### TEXTURE VARS
+CamCenter = camera_locations
+image_files = files
+mesh_0 = trimesh.load('scene_dense_mesh_refine.ply')
+centroids_0 = mesh_0.vertices[mesh_0.faces].mean(axis=1)
+vertices_0 = mesh_0.vertices[mesh_0.faces]
+normals_0 = np.cross(vertices_0[:, 2] - vertices_0[:, 0], vertices_0[:, 1] - vertices_0[:, 0])
+images_0 = Images
+reso_0 = 5
+visibility_0 =  Camera_visibility
+texture_coords_0, b_img_tex_0 = init_texture_coords()
+show_texture()
 
+###########################################
 integeration,Energy_over_mesh = Energy_function_calc()
 print("Total photometric loss without texture added:{}".format(integeration))
 
@@ -307,5 +403,3 @@ print("Gradient:{}".format(grad))
 
 print("Saving into PLY file....")
 write_to_PLY(Vertex,Energy_over_mesh)
-
-
