@@ -334,7 +334,7 @@ def getTex(faceId, X_, u=-1., v=-1.):
         b, c = b - a, c - a
         coords = a + u * b + v * c
         d = X_ - CamCenter[cam]
-        # w_temp = K[cam][0][0] * K[cam][1][1] * np.dot(normals_0[faceId], d) / (np.linalg.norm(d) ** 3)
+        # w_temp = np.abs(K[cam][0][0] * K[cam][1][1] * np.dot(normals_0[faceId], d) / (np.linalg.norm(d) ** 3))
         w_temp = 1              # NOT WORKING WHEN W_TEMP IS COMPUTED PROPERLY
         res_tex += images_0[cam][int(coords[1])][int(coords[0])] * w_temp
         w += w_temp
@@ -358,6 +358,7 @@ def show_texture():
                     # colors.append(texture[i][u * reso + v] / wt[i][u * reso + v])
                     colors.append(tex_val)
     pcd = trimesh.PointCloud(vertices=points, colors=colors)
+    print("Time taken: ", time() - start_0)
     pcd.scene().show()
 #########################################################################################################################
 #Fetch initial scene data
@@ -378,8 +379,6 @@ mesh_centroid = np.mean(Mesh_vertices,axis=1)
 #Array of vertices
 Vertex = np.array([np.array(list(mesh.elements[0].data[i])) for i in range(len(mesh.elements[0].data))])
 
-#Visibility table
-Camera_visibility = calculate_visibility_mesh(camera_locations)
 ###########################################
 ### TEXTURE STUFF
 start_0 = time()
@@ -389,11 +388,12 @@ mesh_0 = trimesh.load('scene_dense_mesh_refine.ply')
 centroids_0 = mesh_0.vertices[mesh_0.faces].mean(axis=1)
 vertices_0 = mesh_0.vertices[mesh_0.faces]
 normals_0 = np.cross(vertices_0[:, 2] - vertices_0[:, 0], vertices_0[:, 1] - vertices_0[:, 0])
-images_0 = Images
+images_0 = [mpl.image.imread(f) for f in image_files]
 reso_0 = 5
+#Visibility table
+Camera_visibility = calculate_visibility_mesh(camera_locations)
 visibility_0 =  Camera_visibility
 texture_coords_0, b_img_tex_0 = init_texture_coords()
-print("Time taken: ", time() - start_0)
 show_texture()
 ###########################################
 integeration,Energy_over_mesh = Energy_function_calc()
