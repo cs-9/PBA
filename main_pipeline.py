@@ -304,12 +304,12 @@ def init_texture_coords():
             a__ = np.round(a_)
             b__ = np.round(b_)
             c__ = np.round(c_)
-            if (0 <= int(a__[0]) < img.shape[0]) \
-                    and (0 <= int(b__[0]) < img.shape[0]) \
-                    and (0 <= int(c__[0]) < img.shape[0]) \
-                    and (0 <= int(a__[1]) < img.shape[1]) \
-                    and (0 <= int(b__[1]) < img.shape[1]) \
-                    and (0 <= int(c__[1]) < img.shape[1]):
+            if (0 <= int(a__[1]) < img.shape[0]) \
+                    and (0 <= int(b__[1]) < img.shape[0]) \
+                    and (0 <= int(c__[1]) < img.shape[0]) \
+                    and (0 <= int(a__[0]) < img.shape[1]) \
+                    and (0 <= int(b__[0]) < img.shape[1]) \
+                    and (0 <= int(c__[0]) < img.shape[1]):
                 b_img_tex[i][cam] = True
                 texture_coords[i][cam][0] = a__[:2]
                 texture_coords[i][cam][1] = b__[:2]
@@ -334,9 +334,9 @@ def getTex(faceId, X_, u=-1., v=-1.):
         b, c = b - a, c - a
         coords = a + u * b + v * c
         d = X_ - CamCenter[cam]
-        # w_temp = K[cam][0][0] * K[cam][1][1] * np.dot(normals[faceId], d) / (np.linalg.norm(d) ** 3)
+        # w_temp = K[cam][0][0] * K[cam][1][1] * np.dot(normals_0[faceId], d) / (np.linalg.norm(d) ** 3)
         w_temp = 1              # NOT WORKING WHEN W_TEMP IS COMPUTED PROPERLY
-        res_tex += images_0[cam][int(coords[0])][int(coords[1])] * w_temp
+        res_tex += images_0[cam][int(coords[1])][int(coords[0])] * w_temp
         w += w_temp
     if w != 0:
         return res_tex / w, True
@@ -381,7 +381,8 @@ Vertex = np.array([np.array(list(mesh.elements[0].data[i])) for i in range(len(m
 #Visibility table
 Camera_visibility = calculate_visibility_mesh(camera_locations)
 ###########################################
-### TEXTURE VARS
+### TEXTURE STUFF
+start_0 = time()
 CamCenter = camera_locations
 image_files = files
 mesh_0 = trimesh.load('scene_dense_mesh_refine.ply')
@@ -392,8 +393,8 @@ images_0 = Images
 reso_0 = 5
 visibility_0 =  Camera_visibility
 texture_coords_0, b_img_tex_0 = init_texture_coords()
+print("Time taken: ", time() - start_0)
 show_texture()
-
 ###########################################
 integeration,Energy_over_mesh = Energy_function_calc()
 print("Total photometric loss without texture added:{}".format(integeration))
