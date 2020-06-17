@@ -151,7 +151,8 @@ def Energy_function_calc(Vertex_gradient,texture_linear_0,sample_size=SAMPLE_SIZ
     integration = 0
     Energy_over_mesh = np.zeros(len(Mesh_info))
     
-    for camera_index in tqdm(range(len(camera_locations)),desc="Calculating photometric loss...",position=0, leave=True):
+    # for camera_index in tqdm(range(len(camera_locations)),desc="Calculating photometric loss...",position=0, leave=True):
+    for camera_index in range(len(camera_locations)):
         f_x = K[camera_index][0,0]
         f_y = K[camera_index][1,1]
         visibility = Camera_visibility[camera_index]
@@ -435,13 +436,14 @@ def linearize_texture(texture):
     return texture_mesh
 
 def gradient_descent(Epochs,Vertices_grad,texture_linear_0,learning_rate,verbosity=1):
-    loss,_ = Energy_function_calc(Vertex,texture_linear_0)
+    print("Starting gradient descent....")
+    loss,_ = Energy_function_calc(Vertices_grad,texture_linear_0)
     epoch = 0
     for epoch in tqdm(range(Epochs),position=0, leave=True,desc="Epoch{} photometric loss:{}".format(epoch,loss)):
         for vertex_id in range(len(Vertices_grad)):
             Vertices_grad[vertex_id] = Vertices_grad[vertex_id] - learning_rate*Numerical_gradient_mesh(vertex_id,Vertices_grad,texture_linear_0)
     if epoch%verbosity==0:
-        loss,_= Energy_function_calc(Vertex,texture_linear_0)
+        loss,_= Energy_function_calc(Vertices_gradex_grad,texture_linear_0)
     return Vertices_grad
 
 #########################################################################################################################
