@@ -179,7 +179,7 @@ def Energy_function_calc(Vertex_gradient,texture_linear_0,sample_size=SAMPLE_SIZ
                 integration += temp_val
     return integration,Energy_over_mesh
 
-def Numerical_gradient_mesh(vertex_id,Vertex,texture_linear_0,diff=0.0000001,sample_size=SAMPLE_SIZE):
+def Numerical_gradient_mesh(vertex_id,Vertex_grad,texture_linear_0,diff=0.0000001,sample_size=SAMPLE_SIZE):
     '''
     Calculates numerical gradient for a single vertex
     Central diffference Method used: (f(x+diff)-f(x-diff))/2*diff
@@ -198,7 +198,7 @@ def Numerical_gradient_mesh(vertex_id,Vertex,texture_linear_0,diff=0.0000001,sam
     affected_meshes = np.unique(np.where((Mesh_vertices==Vertex[vertex_id]))[0])
     gradient = np.array([0.0,0.0,0.0]) 
     for axis in range(3):
-        Vertex_gradient = Vertex.copy()
+        Vertex_gradient = Vertex_grad.copy()
         integration = 0
         for camera_index in range(len(camera_locations)):
             f_x = K[camera_index][0,0]
