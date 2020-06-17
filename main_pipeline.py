@@ -138,7 +138,7 @@ def calculate_visibility_mesh(camera_locations):
     print("Done in {}sec".format(end-start))
     return Camera_visibility
 
-def Energy_function_calc(sample_size=SAMPLE_SIZE):
+def Energy_function_calc(Vertex_gradient,texture_linear_0,sample_size=SAMPLE_SIZE):
     '''Finds Energy value for the whole mesh and camera'''
     #Calculates barycentric coordinates
     points = []
@@ -151,7 +151,7 @@ def Energy_function_calc(sample_size=SAMPLE_SIZE):
     integration = 0
     Energy_over_mesh = np.zeros(len(Mesh_info))
     
-    for camera_index in tqdm(range(len(camera_locations)),desc="Calculating energy function..."):
+    for camera_index in tqdm(range(len(camera_locations)),desc="Calculating photometric loss..."):
         f_x = K[camera_index][0,0]
         f_y = K[camera_index][1,1]
         visibility = Camera_visibility[camera_index]
@@ -159,26 +159,26 @@ def Energy_function_calc(sample_size=SAMPLE_SIZE):
         C = np.array(list(camera_locations[camera_index]))
         for mesh_id in range(len(Mesh_info)):
             if visibility[mesh_id]!=0:    
-                X_j = Mesh_vertices[mesh_id] 
-                _,n_j,A_j = Mesh_info[mesh_id]
+                X_j = Vertex_gradient[mesh.elements[1].data[mesh_id][0]] 
+                n_j,A_j = fetch_area_normal(X_j)
                 #P=uA+vB+wC
                 X_u = np.dot(points,X_j)
                 #Finds x = PX
                 se = np.dot(P_camera,np.hstack((X_u,np.ones((len(X_u),1)))).T).T
                 se = np.divide(se,se[:,-1][:,np.newaxis])
                 #Texture term shd be added, term from image fetched
-                image_term = np.linalg.norm(Images[camera_index][np.clip(se[:,1].astype(int),0,h-1),np.clip(se[:,0].astype(int),0,w-1)],axis=1)
+                image_term = np.linalg.norm(Images[camera_index][np.clip(se[:,1].astype(int),0,h-1),np.clip(se[:,0].astype(int),0,w-1)]-np.array(texture_linear_0[mesh_id]),axis=1)
                 #For alpha term
                 d = X_u - C
                 d_z = np.linalg.norm(d,axis=1)
-                alpha = (10**-6)*(f_x*f_y)*np.divide(d,d_z[:,np.newaxis]**3)
+                alpha = (10**-10)*(f_x*f_y)*np.divide(d,d_z[:,np.newaxis]**3)
                 #Final integeration over a single meshe
-                temp_val = np.abs(A_j*np.dot(image_term,np.dot(alpha,n_j))*visibility[mesh_id])
+                temp_val = np.abs(A_j*np.dot(image_term,np.dot(alpha,n_j)))*visibility[mesh_id]
                 Energy_over_mesh[mesh_id] = Energy_over_mesh[mesh_id] + temp_val
                 integration += temp_val
     return integration,Energy_over_mesh
 
-def Numerical_gradient_mesh(vertex_id,diff=0.0000001,sample_size=14):
+def Numerical_gradient_mesh(vertex_id,Vertex,texture_linear_0,diff=0.0000001,sample_size=SAMPLE_SIZE):
     '''
     Calculates numerical gradient for a single vertex
     Central diffference Method used: (f(x+diff)-f(x-diff))/2*diff
@@ -217,13 +217,13 @@ def Numerical_gradient_mesh(vertex_id,diff=0.0000001,sample_size=14):
                     se = np.dot(P_camera,np.hstack((X_u,np.ones((len(X_u),1)))).T).T
                     se = np.divide(se,se[:,-1][:,np.newaxis])
                     #Texture term shd be added, term from image fetched
-                    image_term = np.linalg.norm(Images[camera_index][np.clip(se[:,1].astype(int),0,h-1),np.clip(se[:,0].astype(int),0,w-1)],axis=1)
+                    image_term = np.linalg.norm(Images[camera_index][np.clip(se[:,1].astype(int),0,h-1),np.clip(se[:,0].astype(int),0,w-1)]-np.array(texture_linear_0[mesh_id]),axis=1)
                     #For alpha term
                     d = X_u - C
                     d_z = np.linalg.norm(d,axis=1)
-                    alpha = (10**-7)*(f_x*f_y)*np.divide(d,d_z[:,np.newaxis]**3)
+                    alpha = (10**-10)*(f_x*f_y)*np.divide(d,d_z[:,np.newaxis]**3)
                     #Final integeration over a single meshe
-                    integration_pos = np.abs(A_j*np.dot(image_term,np.dot(alpha,n_j))*visibility[mesh_id])
+                    integration_pos = A_j*np.abs(np.dot(image_term,np.dot(alpha,n_j)))*visibility[mesh_id]
 
                     #Negative perturbation f(x-diff)
                     Vertex_gradient[vertex_id][axis] = Vertex[vertex_id][axis]-diff
@@ -235,13 +235,13 @@ def Numerical_gradient_mesh(vertex_id,diff=0.0000001,sample_size=14):
                     se = np.dot(P_camera,np.hstack((X_u,np.ones((len(X_u),1)))).T).T
                     se = np.divide(se,se[:,-1][:,np.newaxis])
                     #Texture term shd be added, term from image fetched
-                    image_term = np.linalg.norm(Images[camera_index][np.clip(se[:,1].astype(int),0,h-1),np.clip(se[:,0].astype(int),0,w-1)],axis=1)
+                    image_term = np.linalg.norm(Images[camera_index][np.clip(se[:,1].astype(int),0,h-1),np.clip(se[:,0].astype(int),0,w-1)]-np.array(texture_linear_0[mesh_id]),axis=1)
                     #For alpha term
                     d = X_u - C
                     d_z = np.linalg.norm(d,axis=1)
-                    alpha = (10**-7)*(f_x*f_y)*np.divide(d,d_z[:,np.newaxis]**3)
+                    alpha = (10**-10)*(f_x*f_y)*np.divide(d,d_z[:,np.newaxis]**3)
                     #Final integeration over a single meshe
-                    integration_neg = np.abs(A_j*np.dot(image_term,np.dot(alpha,n_j))*visibility[mesh_id])
+                    integration_neg = A_j*np.abs(np.dot(image_term,np.dot(alpha,n_j)))*visibility[mesh_id]
 
                     #Final addition 
                     integration += (integration_pos-integration_neg)
@@ -281,7 +281,6 @@ def write_to_PLY(Vertex_update,Energy_function):
         header_lines = header_lines + str(Colored_Mesh[i]).replace(",","")[1:-1] + '\n'
     with open("./mesh_visualize.ply","w") as f:
         f.write(header_lines)
-        
         
 def init_texture_coords():
     A, B, C = vertices_0[:, 0], vertices_0[:, 1], vertices_0[:, 2]
@@ -362,7 +361,7 @@ def show_texture():
                     colors.append(tex_val)
     pcd = trimesh.PointCloud(vertices=points, colors=colors)
     print("Time taken: ", time() - start_0)
-    pcd.scene().show()
+#     pcd.scene().show()
     pcd.export("mesh_textured.ply")
     print("Texture saved to file: mesh_textured.ply")
     
@@ -426,13 +425,25 @@ def show_texture_2(texture, wt):
     
 
 def linearize_texture(texture):
-    texture_linear = []
+    texture_mesh = []
     for i in range(mesh_0.faces.shape[0]):
+        texture_linear = []
         for u in np.arange(0, 1, 1/SAMPLE_SIZE):
             for v in np.arange(0, 1 - u, 1/SAMPLE_SIZE):
                 texture_linear.append(texture[i][int(u * SAMPLE_SIZE * SAMPLE_SIZE + v * SAMPLE_SIZE)])
-    return texture_linear
-    
+        texture_mesh.append(texture_linear)
+    return texture_mesh
+
+def gradient_descent(Epochs,Vertices_grad,texture_linear_0,learning_rate,verbosity=1):
+    loss,_ = Energy_function_calc(Vertex,texture_linear_0)
+    epoch = 0
+    for epoch in tqdm(range(Epochs),desc="Epoch{} photometric loss:{}".format(epoch,loss)):
+        for vertex_id in range(len(Vertices_grad)):
+            Vertices_grad[vertex_id] = Vertices_grad[vertex_id] - learning_rate*Numerical_gradient_mesh(vertex_id,Vertices_grad,texture_linear_0)
+        if epoch%verbosity==0:
+            loss,_= Energy_function_calc(Vertex,texture_linear_0)
+    return Vertices_grad
+
 #########################################################################################################################
 #Fetch initial scene data
 P,R,camera_locations,K,files = return_camera_info("camera_params.test","images.test")
@@ -473,11 +484,14 @@ texture_0, wt_0 = init_texture()
 texture_linear_0 = linearize_texture(texture_0)
 show_texture_2(texture_0, wt_0)
 ###########################################
-integeration,Energy_over_mesh = Energy_function_calc()
-print("Total photometric loss without texture added:{}".format(integeration))
-
-grad = Numerical_gradient_mesh(35)
+grad = Numerical_gradient_mesh(34,Vertex,texture_linear_0)
 print("Gradient:{}".format(grad))
+
+#Gradient descent over mesh coordinates
+Vertex = gradient_descent(15,Vertex,texture_linear_0,0.001)
+
+integeration,Energy_over_mesh = Energy_function_calc(Vertex,texture_linear_0)
+print("Total photometric loss :{}".format(integeration))
 
 print("Saving into PLY file....")
 write_to_PLY(Vertex,Energy_over_mesh)

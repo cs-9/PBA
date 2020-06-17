@@ -9,5 +9,8 @@ sfm_data.bin
 *.ipynb
 testing.ply
 tet.ply
+textures
+*.zip
+
 
 
