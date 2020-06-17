@@ -424,6 +424,15 @@ def show_texture_2(texture, wt):
     # pcd.scene().show()
     pcd.export("mesh_textured_2.ply")
     
+
+def linearize_texture(texture):
+    texture_linear = []
+    for i in range(mesh_0.faces.shape[0]):
+        for u in np.arange(0, 1, 1/SAMPLE_SIZE):
+            for v in np.arange(0, 1 - u, 1/SAMPLE_SIZE):
+                texture_linear.append(texture[i][int(u * SAMPLE_SIZE * SAMPLE_SIZE + v * SAMPLE_SIZE)])
+    return texture_linear
+    
 #########################################################################################################################
 #Fetch initial scene data
 P,R,camera_locations,K,files = return_camera_info("camera_params.test","images.test")
@@ -451,6 +460,7 @@ image_files = [operating_dir+files[i].split("/")[-1] for i in range(len(camera_l
 mesh_0 = trimesh.load('scene_dense_mesh_refine.ply')
 centroids_0 = mesh_0.vertices[mesh_0.faces].mean(axis=1)
 vertices_0 = mesh_0.vertices[mesh_0.faces]
+# print("TESTING IF EQL: ", (Mesh_vertices == vertices_0).all())
 normals_0 = np.cross(vertices_0[:, 2] - vertices_0[:, 0], vertices_0[:, 1] - vertices_0[:, 0])
 # images_0 = [mpl.image.imread(f) for f in image_files]
 images_0 = Images
@@ -460,6 +470,7 @@ Camera_visibility = calculate_visibility_mesh(camera_locations)
 visibility_0 =  Camera_visibility
 # texture_coords_0, b_img_tex_0 = init_texture_coords()
 texture_0, wt_0 = init_texture()
+texture_linear_0 = linearize_texture(texture_0)
 show_texture_2(texture_0, wt_0)
 ###########################################
 integeration,Energy_over_mesh = Energy_function_calc()
