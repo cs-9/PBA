@@ -173,7 +173,7 @@ def Energy_function_calc(sample_size=SAMPLE_SIZE):
                 d_z = np.linalg.norm(d,axis=1)
                 alpha = (10**-6)*(f_x*f_y)*np.divide(d,d_z[:,np.newaxis]**3)
                 #Final integeration over a single meshe
-                temp_val = A_j*np.dot(image_term,np.dot(alpha,n_j))*visibility[mesh_id]
+                temp_val = np.abs(A_j*np.dot(image_term,np.dot(alpha,n_j))*visibility[mesh_id])
                 Energy_over_mesh[mesh_id] = Energy_over_mesh[mesh_id] + temp_val
                 integration += temp_val
     return integration,Energy_over_mesh
@@ -223,7 +223,7 @@ def Numerical_gradient_mesh(vertex_id,diff=0.0000001,sample_size=14):
                     d_z = np.linalg.norm(d,axis=1)
                     alpha = (10**-7)*(f_x*f_y)*np.divide(d,d_z[:,np.newaxis]**3)
                     #Final integeration over a single meshe
-                    integration_pos = A_j*np.dot(image_term,np.dot(alpha,n_j))*visibility[mesh_id]
+                    integration_pos = np.abs(A_j*np.dot(image_term,np.dot(alpha,n_j))*visibility[mesh_id])
 
                     #Negative perturbation f(x-diff)
                     Vertex_gradient[vertex_id][axis] = Vertex[vertex_id][axis]-diff
@@ -241,7 +241,7 @@ def Numerical_gradient_mesh(vertex_id,diff=0.0000001,sample_size=14):
                     d_z = np.linalg.norm(d,axis=1)
                     alpha = (10**-7)*(f_x*f_y)*np.divide(d,d_z[:,np.newaxis]**3)
                     #Final integeration over a single meshe
-                    integration_neg = A_j*np.dot(image_term,np.dot(alpha,n_j))*visibility[mesh_id]
+                    integration_neg = np.abs(A_j*np.dot(image_term,np.dot(alpha,n_j))*visibility[mesh_id])
 
                     #Final addition 
                     integration += (integration_pos-integration_neg)
@@ -421,7 +421,7 @@ def show_texture_2(texture, wt):
                 points.append(X)
                 colors.append(texture[i][int(u * SAMPLE_SIZE * SAMPLE_SIZE + v * SAMPLE_SIZE)] / wt[i][int(u * SAMPLE_SIZE * SAMPLE_SIZE + v * SAMPLE_SIZE)])
     pcd = trimesh.PointCloud(vertices=points, colors=colors)
-    pcd.scene().show()
+    # pcd.scene().show()
     pcd.export("mesh_textured_2.ply")
     
 #########################################################################################################################
@@ -447,12 +447,13 @@ Vertex = np.array([np.array(list(mesh.elements[0].data[i])) for i in range(len(m
 ### TEXTURE STUFF
 start_0 = time()
 CamCenter = camera_locations
-image_files = files
+image_files = [operating_dir+files[i].split("/")[-1] for i in range(len(camera_locations))]
 mesh_0 = trimesh.load('scene_dense_mesh_refine.ply')
 centroids_0 = mesh_0.vertices[mesh_0.faces].mean(axis=1)
 vertices_0 = mesh_0.vertices[mesh_0.faces]
 normals_0 = np.cross(vertices_0[:, 2] - vertices_0[:, 0], vertices_0[:, 1] - vertices_0[:, 0])
-images_0 = [mpl.image.imread(f) for f in image_files]
+# images_0 = [mpl.image.imread(f) for f in image_files]
+images_0 = Images
 #Visibility table
 Camera_visibility = calculate_visibility_mesh(camera_locations)
 
