@@ -283,89 +283,7 @@ def write_to_PLY(Vertex_update,Energy_function):
     with open("./mesh_visualize.ply","w") as f:
         f.write(header_lines)
         
-def init_texture_coords():
-    A, B, C = vertices_0[:, 0], vertices_0[:, 1], vertices_0[:, 2]
-    A = np.hstack([A, np.ones([A.shape[0], 1], dtype=int)])
-    B = np.hstack([B, np.ones([B.shape[0], 1], dtype=int)])
-    C = np.hstack([C, np.ones([C.shape[0], 1], dtype=int)])
 
-    start = time()
-
-    texture_coords = np.zeros([mesh_0.faces.shape[0], len(image_files), 3, 2], dtype=np.float64)
-    b_img_tex = np.zeros([mesh_0.faces.shape[0], len(image_files)], dtype=bool)
-
-    for cam in range(len(image_files)):
-        # print("%.2f%% Complete. Time Taken: %.2fs" % (100 * cam / len(image_files), time() - start))
-        p = P[cam]
-        img = images_0[cam]
-        for i in range(vertices_0.shape[0]):
-            if not visibility_0[cam][i]:
-                continue
-            a, b, c = A[i], B[i], C[i]
-            a_, b_, c_ = p.dot(a.T), p.dot(b.T), p.dot(c.T)
-            a_, b_, c_ = a_ / a_[-1], b_ / b_[-1], c_ / c_[-1]
-            a__ = np.round(a_)
-            b__ = np.round(b_)
-            c__ = np.round(c_)
-            if (0 <= int(a__[1]) < img.shape[0]) \
-                    and (0 <= int(b__[1]) < img.shape[0]) \
-                    and (0 <= int(c__[1]) < img.shape[0]) \
-                    and (0 <= int(a__[0]) < img.shape[1]) \
-                    and (0 <= int(b__[0]) < img.shape[1]) \
-                    and (0 <= int(c__[0]) < img.shape[1]):
-                b_img_tex[i][cam] = True
-                texture_coords[i][cam][0] = a__[:2]
-                texture_coords[i][cam][1] = b__[:2]
-                texture_coords[i][cam][2] = c__[:2]
-    return texture_coords, b_img_tex
-
-
-def getTex(faceId, X_, u=-1., v=-1.):
-    A, B, C = vertices_0[faceId]
-    if u == -1 or v == -1:
-        X = X_ - A
-        B -= A
-        C -= A
-        v = (X[1] * B[0] - B[1] * X[0]) / (B[0] * C[1] - B[1] * C[0])
-        u = (X[0] - v * C[0]) / B[0]
-    res_tex = np.array([0., 0., 0.])
-    w = 0
-    for cam in range(len(images_0)):
-        if not b_img_tex_0[faceId][cam]:
-            continue
-        a, b, c = texture_coords_0[faceId][cam]
-        b, c = b - a, c - a
-        coords = a + u * b + v * c
-        d = X_ - CamCenter[cam]
-        # w_temp = np.abs(K[cam][0][0] * K[cam][1][1] * np.dot(normals_0[faceId], d) / (np.linalg.norm(d) ** 3))
-        w_temp = 1              # NOT WORKING WHEN W_TEMP IS COMPUTED PROPERLY
-        res_tex += images_0[cam][int(coords[1])][int(coords[0])] * w_temp
-        w += w_temp
-    if w != 0:
-        return res_tex / w, True
-    return res_tex, False
-    
-    
-def show_texture():
-    points = []
-    colors = []
-
-    for i in range(mesh_0.faces.shape[0]):
-        A, B, C = vertices_0[i]
-        for u in range(0):
-            for v in range(0, reso_0 - u):
-                X = A + u / reso_0 * (B - A) + v / reso_0 * (C - A)
-                tex_val, flag = getTex(i, X, u / reso_0, v / reso_0)
-                if flag:
-                    points.append(A + u / reso_0 * (B - A) + v / reso_0 * (C - A))
-                    # colors.append(texture[i][u * reso + v] / wt[i][u * reso + v])
-                    colors.append(tex_val)
-    pcd = trimesh.PointCloud(vertices=points, colors=colors)
-    print("Time taken: ", time() - start_0)
-#     pcd.scene().show()
-    pcd.export("mesh_textured.ply")
-    print("Texture saved to file: mesh_textured.ply")
-    
 def init_texture():
     A, B, C = vertices_0[:, 0], vertices_0[:, 1], vertices_0[:, 2]
     A = np.hstack([A, np.ones([A.shape[0], 1], dtype=int)])
@@ -406,7 +324,7 @@ def init_texture():
     return texture, wt
 
 
-def show_texture_2(texture, wt):
+def show_texture(texture, wt):
     points = []
     colors = []
 
@@ -419,7 +337,8 @@ def show_texture_2(texture, wt):
                 w = 1 - u - v
                 X = u * A + v * B + w * C
                 points.append(X)
-                colors.append(texture[i][int(u * SAMPLE_SIZE * SAMPLE_SIZE + v * SAMPLE_SIZE)] / wt[i][int(u * SAMPLE_SIZE * SAMPLE_SIZE + v * SAMPLE_SIZE)])
+                color = texture[i][int(u * SAMPLE_SIZE * SAMPLE_SIZE + v * SAMPLE_SIZE)] / wt[i][int(u * SAMPLE_SIZE * SAMPLE_SIZE + v * SAMPLE_SIZE)]
+                colors.append([color[2], color[1], color[0]])
     pcd = trimesh.PointCloud(vertices=points, colors=colors)
     # pcd.scene().show()
     pcd.export("mesh_textured_2.ply")
@@ -442,9 +361,199 @@ def gradient_descent(Epochs,Vertices_grad,texture_linear_0,learning_rate,verbosi
         print("Epoch:{}-----> Photometric Loss:{}".format(epoch,loss))
         for vertex_id in range(len(Vertices_grad)):
             Vertices_grad[vertex_id] = Vertices_grad[vertex_id] - learning_rate*Numerical_gradient_mesh(vertex_id,Vertices_grad,texture_linear_0)
+        for cameraId in range(len(image_files)):
+            grad_K, grad_R, grad_C = Numerical_gradient_cam(cameraId, Vertices_grad, texture_linear_0)
+            K[cameraId] = K[cameraId] - learning_rate * grad_K
+            grad_R = learning_rate * grad_R
+            TotalRotation = np.array([
+                [
+                    [1, 0, 0],
+                    [0, np.cos(grad_R[0]), -np.sin(grad_R[0])],
+                    [0, np.sin(grad_R[0]), np.cos(grad_R[0])]
+                ],
+                [
+                    [np.cos(grad_R[1]), 0, np.sin(grad_R[1])],
+                    [0, 1, 0],
+                    [-np.sin(grad_R[1]), 0, np.cos(grad_R[1])]
+                ],
+                [
+                    [np.cos(grad_R[2]), -np.sin(grad_R[2]), 0],
+                    [np.sin(grad_R[2]), np.cos(grad_R[2]), 0],
+                    [0, 0, 1]
+                ]
+            ])
+            R[cameraId] = R[cameraId].dot(TotalRotation[0]).dot(TotalRotation[1]).dot(TotalRotation[2])
+            camera_locations[cameraId] = camera_locations[cameraId] - learning_rate * grad_C
+            P[cameraId][:, :3] = K[cameraId].dot(R[cameraId])
+            P[cameraId][:, 3] = - K[cameraId].dot(R[cameraId]).dot(camera_locations[cameraId])
     if epoch%verbosity==0:
         loss,_= Energy_function_calc(Vertices_grad,texture_linear_0)
     return Vertices_grad
+
+
+def Numerical_gradient_cam(camera_id, vertices, texture_linear_0, diff=1e-5, sample_size=SAMPLE_SIZE):
+    '''
+    Calculates numerical gradient for a single camera
+    Central diffference Method used: (f(x+diff)-f(x-diff))/2*diff
+    Sample_size: Number of sampling barycentric coordinates in a triangle N = sample_size*(sample_size+1)/2
+    '''
+    # Calculates barycentric coordinates
+    points = []
+    for u in np.arange(0,1,1/sample_size):
+        for v in np.arange(0,1-u,1/sample_size):
+            w = 1-u-v
+            points.append([u,v,w])
+    points = np.array(points)
+    h,w,_ = np.shape(Images[0])
+    gradient_K = np.zeros([3, 3], dtype=float)
+    gradient_R = np.zeros([3], dtype=float)
+    gradient_C = np.array([0., 0., 0.])
+    # compute gradient K
+    k_index_map = {0 : (0, 0), 1 : (0, 1), 2 : (0, 2), 3 : (1, 1), 4 : (1, 2)}
+    
+    f_x = K[camera_id][0][0]
+    f_y = K[camera_id][1][1]
+    visibility = Camera_visibility[camera_id]
+    K_camera = K[camera_id]
+    R_camera = R[camera_id]
+    C_camera = camera_locations[camera_id]
+    # Compute gradient K
+    for axis in range(5):
+        integration = 0
+        K_diff = np.zeros([3, 3], dtype=float)
+        K_diff[k_index_map[axis]] += diff
+        P_camera_p = np.zeros([3, 4], dtype=float)
+        P_camera_n = np.zeros([3, 4], dtype=float)
+        P_camera_p[:, :3] = (K_camera + K_diff).dot(R_camera)
+        P_camera_p[:, 3] = -(K_camera + K_diff).dot(R_camera).dot(C_camera)
+        P_camera_n[:, :3] = (K_camera - K_diff).dot(R_camera)
+        P_camera_n[:, 3] = -(K_camera - K_diff).dot(R_camera).dot(C_camera)
+        for mesh_id in range(mesh_0.faces.shape[0]):
+            if visibility[mesh_id] != 0:
+                X_j = vertices[mesh_0.faces[mesh_id]]
+                n_j, A_j = fetch_area_normal(X_j)
+                # X_u = uA + vB + wC
+                X_u = np.dot(points, X_j)
+                # For alpha term
+                d = X_u - C_camera
+                d_z = np.linalg.norm(d, axis=1)
+                alpha = (10**-10)*(f_x*f_y)*np.divide(d,d_z[:,np.newaxis]**3)
+                # positibe perturbation
+                # Find x = PX
+                se = np.dot(P_camera_p, np.hstack([X_u, np.ones([len(X_u), 1])]).T).T
+                se = np.divide(se, se[:, -1][:, np.newaxis])
+                #Texture term shd be added, term from image fetched
+                image_term = np.linalg.norm(Images[camera_id][np.clip(se[:,1].astype(int),0,h-1),np.clip(se[:,0].astype(int),0,w-1)]-np.array(texture_linear_0[mesh_id]),axis=1)
+                # Integration
+                integration_pos = A_j * np.abs(np.dot(image_term, np.dot(alpha, n_j))) * visibility[mesh_id]
+                # negative perturbation
+                # Find x = PX
+                se = np.dot(P_camera_n, np.hstack([X_u, np.ones([len(X_u), 1])]).T).T
+                se = np.divide(se, se[:, -1][:, np.newaxis])
+                #Texture term shd be added, term from image fetched
+                image_term = np.linalg.norm(Images[camera_id][np.clip(se[:,1].astype(int),0,h-1),np.clip(se[:,0].astype(int),0,w-1)]-np.array(texture_linear_0[mesh_id]),axis=1)
+                # Integration
+                integration_neg = A_j * np.abs(np.dot(image_term, np.dot(alpha, n_j))) * visibility[mesh_id]
+                integration += integration_pos - integration_neg
+        gradient_K[k_index_map[axis]] = integration / (2 * diff)
+    
+    # Compute gradient R
+    # R = Rx() * Ry() * Rz()
+    diff = 1e-4
+    R_diffs = np.array([
+        [
+            [1, 0, 0],
+            [0, np.cos(diff), -np.sin(diff)],
+            [0, np.sin(diff), np.cos(diff)]
+        ],
+        [
+            [np.cos(diff), 0, np.sin(diff)],
+            [0, 1, 0],
+            [-np.sin(diff), 0, np.cos(diff)]
+        ],
+        [
+            [np.cos(diff), -np.sin(diff), 0],
+            [np.sin(diff), np.cos(diff), 0],
+            [0, 0, 1]
+        ]
+    ])
+    P_camera = np.zeros([3, 4], dtype=float)
+    for axis in range(3):
+        for mesh_id in range(mesh_0.faces.shape[0]):
+            if visibility[mesh_id] != 0:
+                X_j = vertices[mesh_0.faces[mesh_id]]
+                n_j, A_j = fetch_area_normal(X_j)
+                # X_u = uA + vB + wC
+                X_u = np.dot(points, X_j)
+                # For alpha term
+                d = X_u - C_camera
+                d_z = np.linalg.norm(d, axis=1)
+                alpha = (10**-10)*(f_x*f_y)*np.divide(d,d_z[:,np.newaxis]**3)
+                # positibe perturbation
+                P_camera[:, :3] = K_camera.dot(R_camera.dot(R_diffs[axis]))
+                P_camera[:, 3] = -K_camera.dot(R_camera.dot(R_diffs[axis])).dot(C_camera)
+                se = np.dot(P_camera,np.hstack((X_u,np.ones((len(X_u),1)))).T).T
+                se = np.divide(se,se[:,-1][:,np.newaxis])
+                # Texture term shd be added, term from image fetched
+                image_term = np.linalg.norm(Images[camera_id][np.clip(se[:,1].astype(int),0,h-1),np.clip(se[:,0].astype(int),0,w-1)]-np.array(texture_linear_0[mesh_id]),axis=1)
+                #Final integeration over a single meshe
+                integration_pos = A_j*np.abs(np.dot(image_term,np.dot(alpha,n_j)))*visibility[mesh_id]
+
+                # negative perturbation
+                P_camera[:, :3] = K_camera.dot(R_camera.dot(-R_diffs[axis]))
+                P_camera[:, 3] = -K_camera.dot(R_camera.dot(-R_diffs[axis])).dot(C_camera)
+                se = np.dot(P_camera,np.hstack((X_u,np.ones((len(X_u),1)))).T).T
+                se = np.divide(se,se[:,-1][:,np.newaxis])
+                # Texture term shd be added, term from image fetched
+                image_term = np.linalg.norm(Images[camera_id][np.clip(se[:,1].astype(int),0,h-1),np.clip(se[:,0].astype(int),0,w-1)]-np.array(texture_linear_0[mesh_id]),axis=1)
+                #Final integeration over a single meshe
+                integration_neg = A_j*np.abs(np.dot(image_term,np.dot(alpha,n_j)))*visibility[mesh_id]
+                integration += integration_pos - integration_neg
+        gradient_R[axis] = integration / (2 * diff)
+    
+    # Compute gradient C
+    diff = 1e-7
+    P_camera = np.zeros([3, 4], dtype=float)
+    P_camera[:, :3] = K_camera.dot(R_camera)
+    for axis in range(3):
+        C_diff = np.zeros([3], dtype=float)        
+        C_diff[axis] = diff
+        integration = 0
+        for mesh_id in range(mesh_0.faces.shape[0]):
+            # TODO: SHOULD USE UPDATED VISIBILITY HERE
+            if visibility[mesh_id] != 0:
+                X_j = vertices[mesh_0.faces[mesh_id]]
+                n_j, A_j = fetch_area_normal(X_j)
+                # X_u = uA + vB + wC
+                X_u = np.dot(points, X_j)
+                # For alpha term
+                d = X_u - C_camera
+                d_z = np.linalg.norm(d, axis=1)
+                alpha = (10**-10)*(f_x*f_y)*np.divide(d,d_z[:,np.newaxis]**3)
+
+                # positibe perturbation
+                P_camera[:, 3] = -K_camera.dot(R_camera).dot(C_camera + C_diff)
+                se = np.dot(P_camera,np.hstack((X_u,np.ones((len(X_u),1)))).T).T
+                se = np.divide(se,se[:,-1][:,np.newaxis])
+                # Texture term shd be added, term from image fetched
+                image_term = np.linalg.norm(Images[camera_id][np.clip(se[:,1].astype(int),0,h-1),np.clip(se[:,0].astype(int),0,w-1)]-np.array(texture_linear_0[mesh_id]),axis=1)
+                #Final integeration over a single meshe
+                integration_pos = A_j*np.abs(np.dot(image_term,np.dot(alpha,n_j)))*visibility[mesh_id]
+
+                # negative perturbation
+                P_camera[:, 3] = -K_camera.dot(R_camera).dot(C_camera - C_diff)
+                se = np.dot(P_camera,np.hstack((X_u,np.ones((len(X_u),1)))).T).T
+                se = np.divide(se,se[:,-1][:,np.newaxis])
+                # Texture term shd be added, term from image fetched
+                image_term = np.linalg.norm(Images[camera_id][np.clip(se[:,1].astype(int),0,h-1),np.clip(se[:,0].astype(int),0,w-1)]-np.array(texture_linear_0[mesh_id]),axis=1)
+                #Final integeration over a single meshe
+                integration_neg = A_j*np.abs(np.dot(image_term,np.dot(alpha,n_j)))*visibility[mesh_id]
+                integration += integration_pos - integration_neg
+        gradient_C[axis] = integration / (2 * diff)
+    
+#     print(gradient_K, gradient_R, gradient_C)
+    return gradient_K, gradient_R, gradient_C
+    
 
 #########################################################################################################################
 #Fetch initial scene data
@@ -490,7 +599,7 @@ grad = Numerical_gradient_mesh(34,Vertex,texture_linear_0)
 print("Gradient:{}".format(grad))
 
 #Gradient descent over mesh coordinates
-Vertex = gradient_descent(15,Vertex,texture_linear_0,0.001)
+Vertex = gradient_descent(5,Vertex,texture_linear_0,0.001)
 
 integeration,Energy_over_mesh = Energy_function_calc(Vertex,texture_linear_0)
 print("Total photometric loss :{}".format(integeration))
