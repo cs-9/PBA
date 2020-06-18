@@ -10,7 +10,7 @@ from matplotlib import cm
 import trimesh
 ######################################### FUNCTIONS ###########################################################
 
-SAMPLE_SIZE = 10
+SAMPLE_SIZE = 8
 
 def valid(l):
     for x in l:
@@ -593,7 +593,7 @@ visibility_0 =  Camera_visibility
 # texture_coords_0, b_img_tex_0 = init_texture_coords()
 texture_0, wt_0 = init_texture()
 texture_linear_0 = linearize_texture(texture_0)
-show_texture_2(texture_0, wt_0)
+show_texture(texture_0, wt_0)
 ###########################################
 grad = Numerical_gradient_mesh(34,Vertex,texture_linear_0)
 print("Gradient:{}".format(grad))
