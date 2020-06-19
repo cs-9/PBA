@@ -10,7 +10,7 @@ from matplotlib import cm
 import trimesh
 ######################################### FUNCTIONS ###########################################################
 
-SAMPLE_SIZE = 8
+SAMPLE_SIZE = 10
 
 def valid(l):
     for x in l:
@@ -209,7 +209,7 @@ def Numerical_gradient_mesh(vertex_id,Vertex_grad,texture_linear_0,diff=0.000000
             for mesh_id in affected_meshes:
                 #Positive perturbation f(x+diff)
                 if visibility[mesh_id]!=0:    
-                    Vertex_gradient[vertex_id][axis] = Vertex[vertex_id][axis]+diff
+                    Vertex_gradient[vertex_id][axis] = Vertex_grad[vertex_id][axis]+diff
                     X_j = Vertex_gradient[mesh.elements[1].data[mesh_id][0]] 
                     n_j,A_j = fetch_area_normal(X_j)
                     #P=uA+vB+wC
@@ -249,7 +249,7 @@ def Numerical_gradient_mesh(vertex_id,Vertex_grad,texture_linear_0,diff=0.000000
         gradient[axis] = integration/(2*diff)
     return gradient
 
-def write_to_PLY(Vertex_update,Energy_function):
+def write_to_PLY(Vertex_update,Energy_function, fName="mesh_visualize.ply"):
     '''
     Writes the vertex and faces into PLY file with the help of Vertex_update. The meshes will
     have color according to the defined energy function over the meshes. Can be texture too
@@ -280,27 +280,24 @@ def write_to_PLY(Vertex_update,Energy_function):
         header_lines = header_lines + str(Write_vertices[i]).replace(",","")[1:-1] + '\n'
     for i in range(num_faces):
         header_lines = header_lines + str(Colored_Mesh[i]).replace(",","")[1:-1] + '\n'
-    with open("./mesh_visualize.ply","w") as f:
+    with open(fName,"w") as f:
         f.write(header_lines)
         
 
 def init_texture():
-    A, B, C = vertices_0[:, 0], vertices_0[:, 1], vertices_0[:, 2]
+    A, B, C = Mesh_vertices[:, 0], Mesh_vertices[:, 1], Mesh_vertices[:, 2]
     A = np.hstack([A, np.ones([A.shape[0], 1], dtype=int)])
     B = np.hstack([B, np.ones([B.shape[0], 1], dtype=int)])
     C = np.hstack([C, np.ones([C.shape[0], 1], dtype=int)])
 
-    start = time()
-
-    texture = np.zeros([mesh_0.faces.shape[0], SAMPLE_SIZE * SAMPLE_SIZE, 3], dtype=np.float64)
-    wt = np.zeros([mesh_0.faces.shape[0], SAMPLE_SIZE * SAMPLE_SIZE], dtype=float)
+    texture = np.zeros([mesh.elements[1].data.shape[0], SAMPLE_SIZE * SAMPLE_SIZE, 3], dtype=np.float64)
+    wt = np.zeros([mesh.elements[1].data.shape[0], SAMPLE_SIZE * SAMPLE_SIZE], dtype=float)
     print("Computing texture")
     for cam in tqdm(range(len(image_files)),desc="Calculating texture {} ".format(len(image_files))):
-        # print("%.2f%% Complete. Time Taken: %.2fs" % (100 * cam / len(image_files), time() - start))
         p = P[cam]
         img = images_0[cam]
         # alpha = K[cam][0][0] * K[cam][1][1]
-        for i in range(vertices_0.shape[0]):
+        for i in range(mesh.elements[1].data.shape[0]):
             if not visibility_0[cam][i]:
                 continue
             a, b, c = A[i], B[i], C[i]
@@ -311,10 +308,11 @@ def init_texture():
                     # u, v, w
                     w = 1 - u - v
                     pos = np.round(u * a_ + v * b_ + w * c_)
-                    if pos[0] >= 640 or pos[1] >= 480:
+                    if pos[0] >= img.shape[1] or pos[1] >= img.shape[0] or pos[0] < 0 or pos[1] < 0:
                         continue
-                    # d = (a + u * b + v * c)[:3] - CamCenter[cam]
-                    # wt_temp = np.abs(normals_0[i].dot(d) * alpha / (d[-1] ** 3))
+                    # d = (u * a + v * b + w * c)[:3] - CamCenter[cam]
+                    # n_j, A_j = fetch_area_normal([a[:3], b[:3], c[:3]])
+                    # wt_temp = np.abs(n_j.dot(d) * alpha * (10 ** -9) / (np.linalg.norm(d) ** 3))
                     wt_temp = 1
                     # if wt_temp == 0 or np.isnan(wt_temp):
                     #     continue
@@ -324,12 +322,12 @@ def init_texture():
     return texture, wt
 
 
-def show_texture(texture, wt):
+def show_texture(texture, wt, fileName):
     points = []
     colors = []
 
-    for i in range(mesh_0.faces.shape[0]):
-        A, B, C = vertices_0[i]
+    for i in range(mesh.elements[1].data.shape[0]):
+        A, B, C = Vertex[tuple(mesh.elements[1].data[i])]
         for u in np.arange(0, 1, 1/SAMPLE_SIZE):
             for v in np.arange(0, 1 - u, 1/SAMPLE_SIZE):
                 if wt[i][int(u * SAMPLE_SIZE * SAMPLE_SIZE + v * SAMPLE_SIZE)] == 0:
@@ -338,15 +336,14 @@ def show_texture(texture, wt):
                 X = u * A + v * B + w * C
                 points.append(X)
                 color = texture[i][int(u * SAMPLE_SIZE * SAMPLE_SIZE + v * SAMPLE_SIZE)] / wt[i][int(u * SAMPLE_SIZE * SAMPLE_SIZE + v * SAMPLE_SIZE)]
-                colors.append([color[2], color[1], color[0]])
+                colors.append([int(color[2]), int(color[1]), int(color[0])])
     pcd = trimesh.PointCloud(vertices=points, colors=colors)
-    # pcd.scene().show()
-    pcd.export("mesh_textured_2.ply")
+    pcd.export(fileName)
     
 
 def linearize_texture(texture):
     texture_mesh = []
-    for i in range(mesh_0.faces.shape[0]):
+    for i in range(mesh.elements[1].data.shape[0]):
         texture_linear = []
         for u in np.arange(0, 1, 1/SAMPLE_SIZE):
             for v in np.arange(0, 1 - u, 1/SAMPLE_SIZE):
@@ -356,6 +353,7 @@ def linearize_texture(texture):
 
 def gradient_descent(Epochs,Vertices_grad,texture_linear_0,learning_rate,verbosity=1):
     print("Starting gradient descent....")
+    global K, R, camera_locations, P, texture_0, wt_0
     loss,_ = Energy_function_calc(Vertices_grad,texture_linear_0)
     for epoch in range(Epochs):
         print("Epoch:{}-----> Photometric Loss:{}".format(epoch,loss))
@@ -384,14 +382,20 @@ def gradient_descent(Epochs,Vertices_grad,texture_linear_0,learning_rate,verbosi
             ])
             R[cameraId] = R[cameraId].dot(TotalRotation[0]).dot(TotalRotation[1]).dot(TotalRotation[2])
             camera_locations[cameraId] = camera_locations[cameraId] - learning_rate * grad_C
+            print(grad_C)
             P[cameraId][:, :3] = K[cameraId].dot(R[cameraId])
             P[cameraId][:, 3] = - K[cameraId].dot(R[cameraId]).dot(camera_locations[cameraId])
+        # texture_0, wt_0 = update_texture(texture_0, wt_0)
     if epoch%verbosity==0:
         loss,_= Energy_function_calc(Vertices_grad,texture_linear_0)
+        # show_texture(texture_0, wt_0, epoch)
+    np.save("camera_K_params", K)
+    np.save("camera_rot_params", R)
+    np.save("camera_center_params", camera_locations)
     return Vertices_grad
 
 
-def Numerical_gradient_cam(camera_id, vertices, texture_linear_0, diff=1e-5, sample_size=SAMPLE_SIZE):
+def Numerical_gradient_cam(camera_id, vertices, texture_linear_0, diff=1e-7, sample_size=SAMPLE_SIZE):
     '''
     Calculates numerical gradient for a single camera
     Central diffference Method used: (f(x+diff)-f(x-diff))/2*diff
@@ -428,9 +432,9 @@ def Numerical_gradient_cam(camera_id, vertices, texture_linear_0, diff=1e-5, sam
         P_camera_p[:, 3] = -(K_camera + K_diff).dot(R_camera).dot(C_camera)
         P_camera_n[:, :3] = (K_camera - K_diff).dot(R_camera)
         P_camera_n[:, 3] = -(K_camera - K_diff).dot(R_camera).dot(C_camera)
-        for mesh_id in range(mesh_0.faces.shape[0]):
+        for mesh_id in range(mesh.elements[1].data.shape[0]):
             if visibility[mesh_id] != 0:
-                X_j = vertices[mesh_0.faces[mesh_id]]
+                X_j = vertices[tuple(mesh.elements[1].data[mesh_id])]
                 n_j, A_j = fetch_area_normal(X_j)
                 # X_u = uA + vB + wC
                 X_u = np.dot(points, X_j)
@@ -459,7 +463,7 @@ def Numerical_gradient_cam(camera_id, vertices, texture_linear_0, diff=1e-5, sam
     
     # Compute gradient R
     # R = Rx() * Ry() * Rz()
-    diff = 1e-4
+    diff = 1e-5
     R_diffs = np.array([
         [
             [1, 0, 0],
@@ -479,9 +483,9 @@ def Numerical_gradient_cam(camera_id, vertices, texture_linear_0, diff=1e-5, sam
     ])
     P_camera = np.zeros([3, 4], dtype=float)
     for axis in range(3):
-        for mesh_id in range(mesh_0.faces.shape[0]):
+        for mesh_id in range(mesh.elements[1].data.shape[0]):
             if visibility[mesh_id] != 0:
-                X_j = vertices[mesh_0.faces[mesh_id]]
+                X_j = vertices[tuple(mesh.elements[1].data[mesh_id])]
                 n_j, A_j = fetch_area_normal(X_j)
                 # X_u = uA + vB + wC
                 X_u = np.dot(points, X_j)
@@ -512,17 +516,17 @@ def Numerical_gradient_cam(camera_id, vertices, texture_linear_0, diff=1e-5, sam
         gradient_R[axis] = integration / (2 * diff)
     
     # Compute gradient C
-    diff = 1e-7
+    diff = 1e-8
     P_camera = np.zeros([3, 4], dtype=float)
     P_camera[:, :3] = K_camera.dot(R_camera)
     for axis in range(3):
         C_diff = np.zeros([3], dtype=float)        
         C_diff[axis] = diff
         integration = 0
-        for mesh_id in range(mesh_0.faces.shape[0]):
+        for mesh_id in range(mesh.elements[1].data.shape[0]):
             # TODO: SHOULD USE UPDATED VISIBILITY HERE
             if visibility[mesh_id] != 0:
-                X_j = vertices[mesh_0.faces[mesh_id]]
+                X_j = vertices[tuple(mesh.elements[1].data[mesh_id])]
                 n_j, A_j = fetch_area_normal(X_j)
                 # X_u = uA + vB + wC
                 X_u = np.dot(points, X_j)
@@ -574,35 +578,35 @@ mesh_centroid = np.mean(Mesh_vertices,axis=1)
 #Array of vertices
 Vertex = np.array([np.array(list(mesh.elements[0].data[i])) for i in range(len(mesh.elements[0].data))])
 
+
 ###########################################
 ### TEXTURE STUFF
 start_0 = time()
 CamCenter = camera_locations
 image_files = [operating_dir+files[i].split("/")[-1] for i in range(len(camera_locations))]
-mesh_0 = trimesh.load('scene_dense_mesh_refine.ply')
-centroids_0 = mesh_0.vertices[mesh_0.faces].mean(axis=1)
-vertices_0 = mesh_0.vertices[mesh_0.faces]
-# print("TESTING IF EQL: ", (Mesh_vertices == vertices_0).all())
-normals_0 = np.cross(vertices_0[:, 2] - vertices_0[:, 0], vertices_0[:, 1] - vertices_0[:, 0])
-# images_0 = [mpl.image.imread(f) for f in image_files]
 images_0 = Images
 #Visibility table
 Camera_visibility = calculate_visibility_mesh(camera_locations)
-
 visibility_0 =  Camera_visibility
-# texture_coords_0, b_img_tex_0 = init_texture_coords()
+
 texture_0, wt_0 = init_texture()
 texture_linear_0 = linearize_texture(texture_0)
-show_texture(texture_0, wt_0)
+show_texture(texture_0, wt_0, "textured_mesh_before.ply")
 ###########################################
+integeration,Energy_over_mesh = Energy_function_calc(Vertex,texture_linear_0)
+print("Total photometric loss :{}".format(integeration))
+write_to_PLY(Vertex,Energy_over_mesh, "mesh_visualize_before.ply")
 grad = Numerical_gradient_mesh(34,Vertex,texture_linear_0)
 print("Gradient:{}".format(grad))
 
 #Gradient descent over mesh coordinates
-Vertex = gradient_descent(5,Vertex,texture_linear_0,0.001)
-
+np.save("vertex_before", Vertex)
+Vertex = gradient_descent(15,Vertex,texture_linear_0, 0.0001)
+np.save("vertex_after", Vertex)
 integeration,Energy_over_mesh = Energy_function_calc(Vertex,texture_linear_0)
 print("Total photometric loss :{}".format(integeration))
 
 print("Saving into PLY file....")
-write_to_PLY(Vertex,Energy_over_mesh)
+show_texture(texture_0, wt_0, "textured_mesh_after.ply")
+write_to_PLY(Vertex,Energy_over_mesh, "mesh_visualize_after.ply")
+
