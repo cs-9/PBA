@@ -7,8 +7,11 @@ tion error between generated model images and observed images. This minimization
 gradient descent on the energy function accounting for visibility changes and optimizes for both shape and
 camera parameters. This paper is used as a last refinement step in the 3D reconstruction pipeline.
 The energy function we minimize is:  
-![Alttext](https://raw.github.com/cs-9/PBA/master/images/pastedimage_0.png)
+![Alttext](https://raw.github.com/cs-9/PBA/master/images/pastedimage_0.png)  
+
 ![Alttext](https://raw.github.com/cs-9/PBA/master/images/pastedimage1.png)
+
+### Completed tasks
 
 - [x] Get the SFM to work OpenMVG used
 - [x] Get the Meshing to work OpenMVS used
@@ -29,35 +32,35 @@ ology. The next section shines more light on the intermediate steps.
 initialization from SFM also gives us the initial camera calibration Π and initial point cloud X . This
 construction is done using OpenMVG software. In order to deal with the surface, we need to form a
 mesh. Using this point cloud a surface is constructed using triangular meshes. We used OpenMVS for
-this process of mesh reconstruction.  
-In order to run OpenMVG, we can use `SfM_SequentialPipeline.py` after installation 
-`python SfM_SequentialPipeline.py {DATASET LOCATION} {RESULTS LOCATION}`  
-Often there might be error in getting SFM results, we can rectify it by changing focal length. Please follow documentation of OpenMVG and OpenMVS.
+this process of mesh reconstruction.    
+In order to run OpenMVG, we can use `SfM_SequentialPipeline.py` after installation   
+`python SfM_SequentialPipeline.py {DATASET LOCATION} {RESULTS LOCATION}`    
+Often there might be error in getting SFM results, we can rectify it by changing focal length. Please follow documentation of OpenMVG and OpenMVS.  
 2. Since our photometric loss depends on the visibility of mesh from each camera, we calculate visibility
 of each of the mesh from a particular camera position. Here its assumed each point in the mesh will
-have same visibility as that of the mesh. A mesh is termed as visible if the ray from the camera center connecting to the centroid of the mesh does not encounter any other mesh. We can determine if a line segment intersects a triangle by comparing the signed volumes formed by different sections. Using this methodology, we successfully calculated the visibility of a single mesh from a single camera. Now this step was repeated for all the meshes and cameras.
-3. We next estimate the texture using the images from each camera and the point cloud. The texture at each point is computed using the following equation.
-![Alttext](https://raw.github.com/cs-9/PBA/master/images/texture.png)
-![Alttext](https://raw.github.com/cs-9/PBA/master/images/texture2.png)
+have same visibility as that of the mesh. A mesh is termed as visible if the ray from the camera center connecting to the centroid of the mesh does not encounter any other mesh. We can determine if a line segment intersects a triangle by comparing the signed volumes formed by different sections. Using this methodology, we successfully calculated the visibility of a single mesh from a single camera. Now this step was repeated for all the meshes and cameras.  
+3. We next estimate the texture using the images from each camera and the point cloud. The texture at each point is computed using the following equation.  
+![Alttext](https://raw.github.com/cs-9/PBA/master/images/texture.png)  
+![Alttext](https://raw.github.com/cs-9/PBA/master/images/texture2.png)  
 4. Now using all the terms we use the total photometric loss to form the energy function
 5. Using the gradients over point cloud X and camera parameters Π , we use gradient descent over it to
 minimize the energy function/photometric loss.
 
 ## Results
-- <ins>SFM and MVS results</ins>
+- <ins>SFM and MVS results</ins>  
 ![Alttext](https://raw.github.com/cs-9/PBA/master/images/SFM_pipeline.png)
   
-- <ins>Visibility function results</ins>
-![Alttext](https://raw.github.com/cs-9/PBA/master/images/visibility.png)
+- <ins>Visibility function results</ins>  
+![Alttext](https://raw.github.com/cs-9/PBA/master/images/visibility.png)  
   
-- <ins>Texture generation pipeline</ins>
-![Alttext](https://raw.github.com/cs-9/PBA/master/images/texture_gen_pipeline.png)
+- <ins>Texture generation pipeline</ins>  
+![Alttext](https://raw.github.com/cs-9/PBA/master/images/texture_gen_pipeline.png)  
    
-- <ins> Before and After PBA Energy function realization </ins>
-![Alttext](https://raw.github.com/cs-9/PBA/master/images/photometric_visualization.png)
-
-- <ins> Loss results </ins>
-![Alttext](https://raw.github.com/cs-9/PBA/master/images/results.png)
+- <ins> Before and After PBA Energy function realization </ins>  
+![Alttext](https://raw.github.com/cs-9/PBA/master/images/photometric_visualization.png)  
+ 
+- <ins> Loss results </ins>  
+![Alttext](https://raw.github.com/cs-9/PBA/master/images/results.png)  
 
 ## Getting Started
 
