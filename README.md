@@ -60,11 +60,12 @@ minimize the energy function/photometric loss.
 ![Alttext](https://raw.github.com/cs-9/PBA/master/images/photometric_visualization.png)  
  
 - <ins> Loss results </ins>  
+Please read `Project_report.pdf` for more indepth analysis on the results.  
 ![Alttext](https://raw.github.com/cs-9/PBA/master/images/results.png)  
 
 ## Getting Started
 
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. Note that your local environment should be cuda enabled from both pose detection and pose transfer.
+These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
 
 ### Prerequisites
 
