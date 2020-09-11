@@ -11,6 +11,13 @@ testing.ply
 tet.ply
 textures
 *.zip
+src
+test
+textures
+cloud_and_poses.ply
+dinoRing_dense_mesh_refine.ply
+mesh_textured_2.ply
+mesh_visualize.ply
 
 
 

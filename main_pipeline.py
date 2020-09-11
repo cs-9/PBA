@@ -561,8 +561,8 @@ def Numerical_gradient_cam(camera_id, vertices, texture_linear_0, diff=1e-7, sam
 
 #########################################################################################################################
 #Fetch initial scene data
-P,R,camera_locations,K,files = return_camera_info("camera_params.test","images.test")
-mesh = PlyData.read('./scene_dense_mesh_refine.ply')
+P,R,camera_locations,K,files = return_camera_info("./SFM_results_dataset/camera_params.test","./SFM_results_dataset/images.test")
+mesh = PlyData.read('./SFM_results_dataset/scene_dense_mesh_refine.ply')
 #Load all images for each camera
 operating_dir = "./datasets/templeRing/"
 Images = [cv2.imread(operating_dir+files[i].split("/")[-1]) for i in range(len(camera_locations))]
